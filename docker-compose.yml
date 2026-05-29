@@ -1,0 +1,38 @@
+services:
+  gateway:
+    build: .
+    environment:
+      PORT: 8080
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      UPVOX_UPSTREAM: http://upvox-api:3000
+      LASER_UPSTREAM: http://laser-api:3333
+    ports:
+      - "443:8080" # only the gateway is published
+    depends_on:
+      - upvox-api
+      - laser-api
+    networks:
+      - edge
+
+  upvox-api:
+    build: ../upvox-api
+    env_file: ../upvox-api/.env
+    environment:
+      PORT: 3000
+    expose:
+      - "3000" # internal only, no host port
+    networks:
+      - edge
+
+  laser-api:
+    build: ../Profissao-Laser-API
+    env_file: ../Profissao-Laser-API/.env
+    expose:
+      - "3333" # internal only, no host port
+    networks:
+      - edge
+
+networks:
+  edge:
+    driver: bridge
