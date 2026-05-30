@@ -1,3 +1,4 @@
+import cors from '@fastify/cors';
 import httpProxy from '@fastify/http-proxy';
 import { createClient } from '@supabase/supabase-js';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -12,6 +13,8 @@ export function buildApp(): FastifyInstance {
 		env.SUPABASE_SERVICE_ROLE_KEY,
 		{ auth: { persistSession: false, autoRefreshToken: false } },
 	);
+
+	app.register(cors, { origin: true, credentials: true });
 
 	// Validate token + inject trusted identity headers on every request.
 	app.addHook('onRequest', makeAuthHook(supabase));
