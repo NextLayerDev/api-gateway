@@ -18,10 +18,15 @@ function extractBearer(header: string | undefined): string | null {
 	return token || null;
 }
 
-export function makeAuthHook(supabase: SupabaseClient) {
+/** Header que prova para os upstreams que a identidade foi injetada aqui. */
+export const GATEWAY_SECRET_HEADER = 'x-gateway-secret';
+
+export function makeAuthHook(supabase: SupabaseClient, gatewaySecret?: string) {
 	return async function authHook(req: FastifyRequest): Promise<void> {
 		// Anti-spoofing: never trust client-supplied identity headers.
 		for (const h of USER_HEADERS) delete req.headers[h];
+		delete req.headers[GATEWAY_SECRET_HEADER];
+		if (gatewaySecret) req.headers[GATEWAY_SECRET_HEADER] = gatewaySecret;
 
 		const token = extractBearer(req.headers.authorization);
 		if (!token) return;

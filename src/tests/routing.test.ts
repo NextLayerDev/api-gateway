@@ -28,6 +28,7 @@ beforeAll(async () => {
 		who: 'upvox',
 		url: req.url,
 		userId: req.headers['x-user-id'] ?? null,
+		secret: req.headers['x-gateway-secret'] ?? null,
 		body: req.body ?? null,
 	}));
 	const upvoxAddr = await upvox.listen({ port: 0, host: '127.0.0.1' });
@@ -50,6 +51,9 @@ beforeAll(async () => {
 	process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-key';
 	process.env.UPVOX_UPSTREAM = upvoxAddr;
 	process.env.LASER_UPSTREAM = laserAddr;
+	process.env.GATEWAY_SHARED_SECRET = 'gateway-secret-0123456789';
+	process.env.CORS_ORIGINS =
+		'https://app.example.com, https://admin.example.com/';
 
 	const { buildApp } = await import('@/app');
 	gateway = buildApp();
@@ -85,6 +89,49 @@ describe('gateway routing', () => {
 			headers: { authorization: 'Bearer good' },
 		});
 		expect(res.json().userId).toBe(identity.id);
+	});
+
+	it('sends the shared secret to the upvox upstream', async () => {
+		const res = await gateway.inject({
+			method: 'GET',
+			url: '/v1/courses',
+			headers: { 'x-gateway-secret': 'forged' },
+		});
+		expect(res.json().secret).toBe('gateway-secret-0123456789');
+	});
+
+	it('answers the preflight itself, without reaching the upstream', async () => {
+		const res = await gateway.inject({
+			method: 'OPTIONS',
+			url: '/v1/courses',
+			headers: { origin: 'https://app.example.com' },
+		});
+		expect(res.statusCode).toBe(204);
+		expect(res.body).toBe('');
+		expect(res.headers['access-control-allow-origin']).toBe(
+			'https://app.example.com',
+		);
+	});
+
+	it('does not grant CORS to an origin outside CORS_ORIGINS', async () => {
+		const res = await gateway.inject({
+			method: 'GET',
+			url: '/v1/courses',
+			headers: { origin: 'https://evil.example.com' },
+		});
+		expect(res.headers['access-control-allow-origin']).toBeUndefined();
+		expect(res.headers['access-control-allow-credentials']).toBeUndefined();
+	});
+
+	it('normalizes a trailing slash in CORS_ORIGINS', async () => {
+		const res = await gateway.inject({
+			method: 'GET',
+			url: '/v1/courses',
+			headers: { origin: 'https://admin.example.com' },
+		});
+		expect(res.headers['access-control-allow-origin']).toBe(
+			'https://admin.example.com',
+		);
 	});
 
 	it('forwards a raw JSON body intact (Stripe webhook safety)', async () => {

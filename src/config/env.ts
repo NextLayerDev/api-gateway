@@ -6,6 +6,28 @@ const EnvSchema = z.object({
 	SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
 	UPVOX_UPSTREAM: z.url(),
 	LASER_UPSTREAM: z.url(),
+	// Segredo compartilhado com a upvox-api: vai no header `x-gateway-secret`
+	// e é o que faz a API confiar nos `x-user-*` injetados aqui.
+	GATEWAY_SHARED_SECRET: z.preprocess(
+		(v) => (v === '' ? undefined : v),
+		z.string().min(16).optional(),
+	),
+	// Origens liberadas no CORS, separadas por vírgula. Vazio = reflete
+	// qualquer origem (comportamento antigo) — configure em produção.
+	CORS_ORIGINS: z.preprocess(
+		(v) => (v === '' ? undefined : v),
+		z
+			.string()
+			.optional()
+			.transform((v) =>
+				v
+					? v
+							.split(',')
+							.map((o) => o.trim().replace(/\/$/, ''))
+							.filter(Boolean)
+					: [],
+			),
+	),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

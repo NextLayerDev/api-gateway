@@ -13,19 +13,33 @@ export function buildApp(): FastifyInstance {
 		{ auth: { persistSession: false, autoRefreshToken: false } },
 	);
 
+	const allowed = new Set(env.CORS_ORIGINS);
 	app.addHook('onRequest', async (request, reply) => {
-		const origin = request.headers.origin ?? '*';
-		reply.header('Access-Control-Allow-Origin', origin);
-		reply.header('Access-Control-Allow-Credentials', 'true');
-		reply.header('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-		reply.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+		const origin = request.headers.origin;
+		// Com CORS_ORIGINS configurado, só origens da lista recebem os headers
+		// (antes qualquer site recebia Allow-Origin + Allow-Credentials).
+		if (origin && (allowed.size === 0 || allowed.has(origin))) {
+			reply.header('Access-Control-Allow-Origin', origin);
+			reply.header('Access-Control-Allow-Credentials', 'true');
+			reply.header(
+				'Access-Control-Allow-Methods',
+				'GET,POST,PUT,PATCH,DELETE,OPTIONS',
+			);
+			reply.header(
+				'Access-Control-Allow-Headers',
+				'Content-Type, Authorization',
+			);
+		}
+		reply.header('Vary', 'Origin');
 		if (request.method === 'OPTIONS') {
-			reply.status(204).send();
+			// `return reply` encerra aqui: sem ele o preflight seguia para o hook de
+			// auth e para o proxy com a resposta já enviada.
+			return reply.status(204).send();
 		}
 	});
 
 	// Validate token + inject trusted identity headers on every request.
-	app.addHook('onRequest', makeAuthHook(supabase));
+	app.addHook('onRequest', makeAuthHook(supabase, env.GATEWAY_SHARED_SECRET));
 
 	// Gateway-owned healthcheck (static route wins over the catch-all proxy).
 	app.get('/healthz', async () => ({ status: 'ok' }));

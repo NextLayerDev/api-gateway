@@ -49,6 +49,19 @@ describe('makeAuthHook', () => {
 		expect(r.headers['x-user-id']).toBe(identity.id);
 	});
 
+	it('replaces a client-supplied x-gateway-secret with the configured one', async () => {
+		const withSecret = makeAuthHook({} as never, 'real-secret-0123456789');
+		const r = req({ 'x-gateway-secret': 'forged' });
+		await withSecret(r);
+		expect(r.headers['x-gateway-secret']).toBe('real-secret-0123456789');
+	});
+
+	it('drops a client-supplied x-gateway-secret when none is configured', async () => {
+		const r = req({ 'x-gateway-secret': 'forged' });
+		await hook(r);
+		expect(r.headers['x-gateway-secret']).toBeUndefined();
+	});
+
 	it('injects nothing when there is no token', async () => {
 		const r = req({});
 		await hook(r);
