@@ -12,9 +12,12 @@ const identity = {
 };
 
 vi.mock('@/auth/verify', () => ({
-	verifyToken: vi.fn(async (_s: unknown, token: string) =>
-		token === 'good' ? identity : null,
-	),
+	verifyToken: vi.fn(async (_s: unknown, token: string) => {
+		if (token === 'good') return identity;
+		if (token === 'emoji') return { ...identity, name: 'D’Ávila 💜' };
+		if (token === 'latin1') return { ...identity, name: 'João' };
+		return null;
+	}),
 }));
 
 function req(headers: Record<string, string>): FastifyRequest {
@@ -72,5 +75,18 @@ describe('makeAuthHook', () => {
 		const r = req({ authorization: 'Bearer bad' });
 		await hook(r);
 		expect(r.headers['x-user-id']).toBeUndefined();
+	});
+
+	it('omits x-user-name when it has characters invalid in a header', async () => {
+		const r = req({ authorization: 'Bearer emoji' });
+		await hook(r);
+		expect(r.headers['x-user-id']).toBe(identity.id);
+		expect(r.headers['x-user-name']).toBeUndefined();
+	});
+
+	it('keeps Latin-1 accents in x-user-name', async () => {
+		const r = req({ authorization: 'Bearer latin1' });
+		await hook(r);
+		expect(r.headers['x-user-name']).toBe('João');
 	});
 });
