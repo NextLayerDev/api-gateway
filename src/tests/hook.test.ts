@@ -89,4 +89,15 @@ describe('makeAuthHook', () => {
 		await hook(r);
 		expect(r.headers['x-user-name']).toBe('João');
 	});
+
+	it('repassa o SUPABASE_JWT_SECRET para a verificação local', async () => {
+		const { verifyToken } = await import('@/auth/verify');
+		const supabase = {} as never;
+		await makeAuthHook(supabase, undefined, { jwtSecret: 's'.repeat(32) })(
+			req({ authorization: 'Bearer good' }),
+		);
+		expect(verifyToken).toHaveBeenLastCalledWith(supabase, 'good', {
+			jwtSecret: 's'.repeat(32),
+		});
+	});
 });

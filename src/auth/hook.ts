@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { FastifyRequest } from 'fastify';
-import { verifyToken } from '@/auth/verify';
+import { type VerifyOptions, verifyToken } from '@/auth/verify';
 
 export const USER_HEADERS = [
 	'x-user-id',
@@ -29,7 +29,11 @@ function safeHeaderValue(value: string | null): string | null {
 /** Header que prova para os upstreams que a identidade foi injetada aqui. */
 export const GATEWAY_SECRET_HEADER = 'x-gateway-secret';
 
-export function makeAuthHook(supabase: SupabaseClient, gatewaySecret?: string) {
+export function makeAuthHook(
+	supabase: SupabaseClient,
+	gatewaySecret?: string,
+	opts: VerifyOptions = {},
+) {
 	return async function authHook(req: FastifyRequest): Promise<void> {
 		// Anti-spoofing: never trust client-supplied identity headers.
 		for (const h of USER_HEADERS) delete req.headers[h];
@@ -39,7 +43,7 @@ export function makeAuthHook(supabase: SupabaseClient, gatewaySecret?: string) {
 		const token = extractBearer(req.headers.authorization);
 		if (!token) return;
 
-		const identity = await verifyToken(supabase, token);
+		const identity = await verifyToken(supabase, token, opts);
 		if (!identity) return;
 
 		req.headers['x-user-id'] = identity.id;

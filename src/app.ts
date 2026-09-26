@@ -39,7 +39,14 @@ export function buildApp(): FastifyInstance {
 	});
 
 	// Validate token + inject trusted identity headers on every request.
-	app.addHook('onRequest', makeAuthHook(supabase, env.GATEWAY_SHARED_SECRET));
+	// Com SUPABASE_JWT_SECRET o token HS256 é conferido localmente (sem ida
+	// ao auth do Supabase); sem ele, ou token assimétrico, segue o getUser.
+	app.addHook(
+		'onRequest',
+		makeAuthHook(supabase, env.GATEWAY_SHARED_SECRET, {
+			jwtSecret: env.SUPABASE_JWT_SECRET,
+		}),
+	);
 
 	// Gateway-owned healthcheck (static route wins over the catch-all proxy).
 	app.get('/healthz', async () => ({ status: 'ok' }));

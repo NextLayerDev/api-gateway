@@ -12,6 +12,12 @@ const EnvSchema = z.object({
 		(v) => (v === '' ? undefined : v),
 		z.string().min(16).optional(),
 	),
+	// Segredo JWT do projeto (Settings › API › JWT secret). Opcional: com ele
+	// o token HS256 é verificado aqui com jose, sem chamar o auth do Supabase.
+	SUPABASE_JWT_SECRET: z.preprocess(
+		(v) => (v === '' ? undefined : v),
+		z.string().min(32).optional(),
+	),
 	// Origens liberadas no CORS, separadas por vírgula. Vazio = reflete
 	// qualquer origem (comportamento antigo) — configure em produção.
 	CORS_ORIGINS: z.preprocess(
