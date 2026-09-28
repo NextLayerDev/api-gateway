@@ -12,9 +12,12 @@ const identity = {
 };
 
 vi.mock('@/auth/verify', () => ({
-	verifyToken: vi.fn(async (_s: unknown, token: string) =>
-		token === 'good' ? identity : null,
-	),
+	verifyToken: vi.fn(async (_s: unknown, token: string) => {
+		if (token === 'good') return identity;
+		if (token === 'emoji') return { ...identity, name: 'D’Ávila 💜' };
+		if (token === 'latin1') return { ...identity, name: 'João' };
+		return null;
+	}),
 }));
 
 function req(headers: Record<string, string>): FastifyRequest {
@@ -49,6 +52,19 @@ describe('makeAuthHook', () => {
 		expect(r.headers['x-user-id']).toBe(identity.id);
 	});
 
+	it('replaces a client-supplied x-gateway-secret with the configured one', async () => {
+		const withSecret = makeAuthHook({} as never, 'real-secret-0123456789');
+		const r = req({ 'x-gateway-secret': 'forged' });
+		await withSecret(r);
+		expect(r.headers['x-gateway-secret']).toBe('real-secret-0123456789');
+	});
+
+	it('drops a client-supplied x-gateway-secret when none is configured', async () => {
+		const r = req({ 'x-gateway-secret': 'forged' });
+		await hook(r);
+		expect(r.headers['x-gateway-secret']).toBeUndefined();
+	});
+
 	it('injects nothing when there is no token', async () => {
 		const r = req({});
 		await hook(r);
@@ -59,5 +75,29 @@ describe('makeAuthHook', () => {
 		const r = req({ authorization: 'Bearer bad' });
 		await hook(r);
 		expect(r.headers['x-user-id']).toBeUndefined();
+	});
+
+	it('omits x-user-name when it has characters invalid in a header', async () => {
+		const r = req({ authorization: 'Bearer emoji' });
+		await hook(r);
+		expect(r.headers['x-user-id']).toBe(identity.id);
+		expect(r.headers['x-user-name']).toBeUndefined();
+	});
+
+	it('keeps Latin-1 accents in x-user-name', async () => {
+		const r = req({ authorization: 'Bearer latin1' });
+		await hook(r);
+		expect(r.headers['x-user-name']).toBe('João');
+	});
+
+	it('repassa o SUPABASE_JWT_SECRET para a verificação local', async () => {
+		const { verifyToken } = await import('@/auth/verify');
+		const supabase = {} as never;
+		await makeAuthHook(supabase, undefined, { jwtSecret: 's'.repeat(32) })(
+			req({ authorization: 'Bearer good' }),
+		);
+		expect(verifyToken).toHaveBeenLastCalledWith(supabase, 'good', {
+			jwtSecret: 's'.repeat(32),
+		});
 	});
 });
